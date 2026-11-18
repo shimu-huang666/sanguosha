@@ -1,0 +1,7 @@
+# Large media included in the original release package
+/audio/
+/image/
+/font/
+
+# Local game settings
+/noname.config.txt
