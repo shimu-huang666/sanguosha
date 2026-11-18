@@ -9,3 +9,6 @@ room-settings.json.tmp
 
 # Local game settings
 /noname.config.txt
+
+# Deployment packages
+/deploy/
