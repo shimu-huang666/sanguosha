@@ -4,7 +4,6 @@
 var import_ws = require("ws");
 
 // lobby/src/server/roomSettings.ts
-var import_node_crypto = require("node:crypto");
 var import_node_fs = require("node:fs");
 var import_node_path = require("node:path");
 var maxFileSize = 1024 * 1024;
@@ -42,7 +41,6 @@ function isRoomSettings(value) {
 }
 function openRoomSettings() {
   const file = (0, import_node_path.resolve)(process.env.NONAME_ROOM_SETTINGS_FILE || "room-settings.json");
-  const adminToken = Buffer.from(process.env.NONAME_ROOM_SETTINGS_TOKEN || "");
   let settings;
   try {
     const saved = (0, import_node_fs.readFileSync)(file);
@@ -56,17 +54,13 @@ function openRoomSettings() {
     if (error.code !== "ENOENT") throw error;
   }
   return {
-    canSave: adminToken.length > 0,
     get isConfigured() {
       return settings !== void 0;
     },
     get(mode) {
       return typeof mode === "string" && settings && Object.hasOwn(settings, mode) ? settings[mode] : void 0;
     },
-    save(token, value) {
-      if (!adminToken.length || typeof token !== "string" || Buffer.byteLength(token) !== adminToken.length || !(0, import_node_crypto.timingSafeEqual)(Buffer.from(token), adminToken)) {
-        return "forbidden";
-      }
+    save(value) {
       const data = JSON.stringify(value);
       if (!data || Buffer.byteLength(data) > maxFileSize || !isRoomSettings(value)) {
         return "invalid";
@@ -196,11 +190,12 @@ function createServer(options = {}) {
       }
       util.updateRooms();
     },
-    saveRoomSettings(client, token, settings) {
+    saveRoomSettings(client, settings, legacySettings) {
       if (typeof client.onlineKey !== "string" || client.room) {
         return util.sendl(client, "roomsettingssaved", "forbidden");
       }
-      util.sendl(client, "roomsettingssaved", roomSettings.save(token, settings));
+      const config = typeof settings === "string" ? legacySettings : settings;
+      util.sendl(client, "roomsettingssaved", roomSettings.save(config));
     },
     enter(client, key, nickname, avatar) {
       const room = rooms.get(key);
@@ -322,7 +317,7 @@ function createServer(options = {}) {
       util.sendl(client, "denied", "key");
       setTimeout(() => client.close(), 500);
     }, 2e3);
-    util.sendl(client, "roomlist", util.buildRoomList(), util.checkEvents(), util.buildClientList(), client.wsid, roomSettings.canSave);
+    util.sendl(client, "roomlist", util.buildRoomList(), util.checkEvents(), util.buildClientList(), client.wsid, true);
     client.heartbeat = setInterval(() => {
       if (client.beat) {
         client.close();

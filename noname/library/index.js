@@ -12495,7 +12495,7 @@ class Library {
       roomsettingssaved: function(result) {
         const message = {
           ok: "已保存到云端，新建房间将使用这些设置",
-          forbidden: "大厅管理口令错误，或大厅未启用保存",
+          forbidden: "请回到联机大厅后保存设置",
           invalid: "联机设置格式无效，云端设置未更新",
           storage: "大厅保存失败，云端设置未更新"
         };

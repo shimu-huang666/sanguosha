@@ -1,4 +1,3 @@
-import { timingSafeEqual } from "node:crypto";
 import { readFileSync, renameSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -52,7 +51,6 @@ function isRoomSettings(value: unknown): value is RoomSettings {
 
 export function openRoomSettings() {
 	const file = resolve(process.env.NONAME_ROOM_SETTINGS_FILE || "room-settings.json");
-	const adminToken = Buffer.from(process.env.NONAME_ROOM_SETTINGS_TOKEN || "");
 	let settings: RoomSettings | undefined;
 
 	try {
@@ -68,19 +66,13 @@ export function openRoomSettings() {
 	}
 
 	return {
-		canSave: adminToken.length > 0,
 		get isConfigured() {
 			return settings !== undefined;
 		},
 		get(mode: unknown) {
 			return typeof mode === "string" && settings && Object.hasOwn(settings, mode) ? settings[mode] : undefined;
 		},
-		save(token: unknown, value: unknown) {
-			if (!adminToken.length || typeof token !== "string" || Buffer.byteLength(token) !== adminToken.length ||
-				!timingSafeEqual(Buffer.from(token), adminToken)) {
-				return "forbidden";
-			}
-
+		save(value: unknown) {
 			const data = JSON.stringify(value);
 			if (!data || Buffer.byteLength(data) > maxFileSize || !isRoomSettings(value)) {
 				return "invalid";

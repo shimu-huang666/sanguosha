@@ -177,11 +177,13 @@ export function createServer(options: ServerOptions = {}): ServerInstance {
 			util.updateRooms();
 		},
 
-		saveRoomSettings(client: Client, token: unknown, settings: unknown) {
+		saveRoomSettings(client: Client, settings: unknown, legacySettings?: unknown) {
 			if (typeof client.onlineKey !== "string" || client.room) {
 				return util.sendl(client, "roomsettingssaved", "forbidden");
 			}
-			util.sendl(client, "roomsettingssaved", roomSettings.save(token, settings));
+			// Older clients send a credential before the settings.
+			const config = typeof settings === "string" ? legacySettings : settings;
+			util.sendl(client, "roomsettingssaved", roomSettings.save(config));
 		},
 
 		enter(client: Client, key: string, nickname: string, avatar: string) {
@@ -324,7 +326,7 @@ export function createServer(options: ServerOptions = {}): ServerInstance {
 			setTimeout(() => client.close(), 500);
 		}, 2000);
 
-		util.sendl(client, "roomlist", util.buildRoomList(), util.checkEvents(), util.buildClientList(), client.wsid, roomSettings.canSave);
+		util.sendl(client, "roomlist", util.buildRoomList(), util.checkEvents(), util.buildClientList(), client.wsid, true);
 
 		// heartbeat
 		client.heartbeat = setInterval(() => {

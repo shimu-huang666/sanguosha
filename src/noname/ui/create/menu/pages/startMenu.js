@@ -204,8 +204,7 @@ export const startMenu = function (connectMenu) {
 			node.link = page;
 			if (connectMenu) {
 				const saveSettings = ui.create.div(".config.pointerspan", "<span>保存联机设置到云端</span>", page, function () {
-					const token = prompt("输入大厅管理口令，保存各联机模式的本机设置");
-					if (!token || game.ws?.readyState !== WebSocket.OPEN || !_status.creatingroom) return;
+					if (game.ws?.readyState !== WebSocket.OPEN || !_status.creatingroom) return;
 
 					const forbidai = new Set([...lib.baseForbidai, ...lib.config.forbidai_user]);
 					for (const pack of lib.connectCharacterPack) {
@@ -221,7 +220,7 @@ export const startMenu = function (connectMenu) {
 					if (settings.doudizhu) {
 						settings.doudizhu.character_online = get.config("character_online", "doudizhu") ?? null;
 					}
-					game.send("server", "saveRoomSettings", token, settings);
+					game.send("server", "saveRoomSettings", settings);
 				});
 				const updateSaveSettings = () => {
 					saveSettings.style.display = _status.creatingroom && game.ws?.canSaveRoomSettings ? "" : "none";
