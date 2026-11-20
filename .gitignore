@@ -3,9 +3,9 @@
 /image/
 /font/
 
-# Local game settings
-/noname.config.txt
-
 # Lobby settings written at runtime
 room-settings.json
 room-settings.json.tmp
+
+# Local game settings
+/noname.config.txt
