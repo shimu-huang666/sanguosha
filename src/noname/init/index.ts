@@ -872,6 +872,7 @@ async function loadConfig() {
 		}
 	}
 
+	lib.baseForbidai = config.get("forbidai").slice();
 	config.get("all").characters = [];
 	config.get("all").cards = [];
 	config.get("all").plays = [];

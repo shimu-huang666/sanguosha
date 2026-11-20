@@ -47,6 +47,7 @@ export class Library {
 	video = [];
 	skilllist = [];
 	connectBanned = [];
+	baseForbidai = [];
 	characterIntro = {};
 	characterTitle = {};
 	characterPack = new Proxy(
@@ -5878,7 +5879,7 @@ export class Library {
 							num = Math.round(num);
 						}
 						text.innerText = num;
-						game.saveConfig("connect_choice_zhu", num, "identity");
+						text.parentNode._link.config.saveValue(num);
 					},
 				},
 				connect_limit_zhu: {
@@ -5892,7 +5893,7 @@ export class Library {
 					},
 					async onclick(item) {
 						if (item !== "number") {
-							await game.promises.saveConfig("connect_limit_zhu", item, "identity");
+							this._link.config.saveValue(item);
 							return;
 						}
 						while (true) {
@@ -5904,7 +5905,7 @@ export class Library {
 								const number = Number(result);
 								if (number > 0 && Number.isInteger(number)) {
 									this.querySelector("div").innerHTML = result;
-									await game.promises.saveConfig("connect_limit_zhu", result, "identity");
+									this._link.config.saveValue(result);
 									break;
 								}
 							}
@@ -5926,7 +5927,7 @@ export class Library {
 							num = Math.round(num);
 						}
 						text.innerText = num;
-						game.saveConfig("connect_choice_zhong", num, "identity");
+						text.parentNode._link.config.saveValue(num);
 					},
 				},
 				connect_zhong_card: {
@@ -5949,7 +5950,7 @@ export class Library {
 							num = Math.round(num);
 						}
 						text.innerText = num;
-						game.saveConfig("connect_choice_fan", num, "identity");
+						text.parentNode._link.config.saveValue(num);
 					},
 				},
 				connect_choice_nei: {
@@ -5966,7 +5967,7 @@ export class Library {
 							num = Math.round(num);
 						}
 						text.innerText = num;
-						game.saveConfig("connect_choice_nei", num, "identity");
+						text.parentNode._link.config.saveValue(num);
 					},
 				},
 				connect_double_nei: {
@@ -6001,7 +6002,7 @@ export class Library {
 							num = Math.round(num);
 						}
 						text.innerText = num;
-						game.saveConfig("connect_choice_commoner", num, "identity");
+						text.parentNode._link.config.saveValue(num);
 					},
 				},
 				connect_double_character: {
@@ -7787,7 +7788,7 @@ export class Library {
 							num = Math.round(num);
 						}
 						text.innerText = num;
-						game.saveConfig("connect_choice_zhu", num, "doudizhu");
+						text.parentNode._link.config.saveValue(num);
 					},
 				},
 				connect_choice_fan: {
@@ -7804,7 +7805,7 @@ export class Library {
 							num = Math.round(num);
 						}
 						text.innerText = num;
-						game.saveConfig("connect_choice_fan", num, "doudizhu");
+						text.parentNode._link.config.saveValue(num);
 					},
 				},
 				connect_change_card: {
@@ -11239,7 +11240,11 @@ export class Library {
 				return true;
 			}
 			if (!options.includes("ignoreForibidden")) {
-				if (lib.config.forbidai.includes(name) || character.isAiForbidden) {
+				const roomForbidai = _status.connectMode && lib.configOL?.forbidai;
+				const aiForbidden = roomForbidai
+					? roomForbidai.includes(name) || character.isBoss || character.isHiddenBoss
+					: lib.config.forbidai.includes(name);
+				if (aiForbidden || character.isAiForbidden) {
 					return true;
 				}
 			}
@@ -12804,20 +12809,39 @@ export class Library {
 				// 	game.reload();
 				// }
 			},
-			createroom: function (index, config, mode) {
+			createroom: function (index, config, mode, fromCloud) {
 				game.online = false;
 				game.onlineroom = true;
 				game.roomId = index;
 				lib.node = {};
-				game.switchMode(lib.configOL.mode);
+				if (fromCloud) {
+					lib.configOL = { roomSettingsFromCloud: true };
+					game.switchMode(mode, config);
+				} else {
+					game.switchMode(lib.configOL.mode);
+				}
 				ui.create.connecting(true);
 			},
-			enterroomfailed: function () {
-				alert("请稍后再试");
+			enterroomfailed: function (reason) {
+				const message = {
+					"cloud-client-outdated": "请更新游戏后再创建使用云端设置的房间",
+					"cloud-mode-missing": "云端缺少该模式的设置，请管理员重新保存",
+				};
+				alert(message[reason] || "请稍后再试");
 				_status.enteringroom = false;
 				ui.create.connecting(true);
 			},
-			roomlist: function (list, events, clients, wsid) {
+			roomsettingssaved: function (result) {
+				const message = {
+					ok: "已保存到云端，新建房间将使用这些设置",
+					forbidden: "大厅管理口令错误，或大厅未启用保存",
+					invalid: "联机设置格式无效，云端设置未更新",
+					storage: "大厅保存失败，云端设置未更新",
+				};
+				alert(message[result] || "大厅保存失败");
+			},
+			roomlist: function (list, events, clients, wsid, canSaveRoomSettings) {
+				game.ws.canSaveRoomSettings = canSaveRoomSettings === true;
 				game.send("server", "key", [game.onlineKey, lib.version]);
 				game.online = true;
 				game.onlinehall = true;
@@ -12947,13 +12971,12 @@ export class Library {
 							}
 						} else {
 							ui.create.connecting();
-							game.send(
-								"server",
-								game.roomId == game.onlineKey ? "create" : "enter",
-								game.roomId,
-								get.connectNickname(),
-								lib.config.connect_avatar
-							);
+							if (game.roomId == game.onlineKey) {
+								const mode = lib.configOL.mode || lib.config.connect_mode;
+								game.send("server", "create", game.roomId, get.connectNickname(), lib.config.connect_avatar, null, mode, 1);
+							} else {
+								game.send("server", "enter", game.roomId, get.connectNickname(), lib.config.connect_avatar);
+							}
 						}
 					}
 					lib.init.onfree();

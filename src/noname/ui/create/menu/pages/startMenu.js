@@ -13,6 +13,57 @@ export const startMenu = function (connectMenu) {
 	// @ts-expect-error ignore
 	var start = cacheMenuxpages.shift();
 	var rightPane = start.lastChild;
+	let roomConfigChanges = null;
+	if (connectMenu) {
+		const roomOptions = {
+			connect_choose_timeout: {
+				name: "出牌时限",
+				init: "30",
+				item: {
+					10: "10秒",
+					15: "15秒",
+					30: "30秒",
+					60: "60秒",
+					90: "90秒",
+				},
+				connect: true,
+				frequent: true,
+			},
+			connect_observe: {
+				name: "允许旁观",
+				init: true,
+				connect: true,
+			},
+			connect_observe_handcard: {
+				name: "允许观看手牌",
+				init: false,
+				connect: true,
+			},
+			connect_mount_combine: {
+				name: "合并坐骑栏",
+				init: false,
+				connect: true,
+			},
+		};
+		for (const info of Object.values(lib.mode)) {
+			if (info.connect) Object.assign(info.connect, roomOptions);
+		}
+
+		menuUpdates.push(() => {
+			roomConfigChanges = null;
+			if (!_status.waitingForPlayer || !lib.configOL.roomSettingsFromCloud) return;
+
+			const activeMode = start.firstChild.querySelector(".active");
+			if (!activeMode) return;
+			if (!activeMode.link) {
+				activeMode._initLink();
+				rightPane.appendChild(activeMode.link);
+			}
+			roomConfigChanges = {};
+			activeMode.loadRoomConfig();
+		});
+	}
+
 
 	/** 启动按钮 */
 	let startButton = ui.create.div(".menubutton.round.highlight", "启", start, function () {
@@ -23,14 +74,21 @@ export const startMenu = function (connectMenu) {
 		if (active) {
 			if (connectMenu) {
 				if (_status.waitingForPlayer) {
-					var config = {};
-					for (var i in lib.mode[lib.configOL.mode].connect) {
-						if (i == "update") {
-							continue;
+					let config = roomConfigChanges;
+					if (!config) {
+						config = {};
+						for (var i in lib.mode[lib.configOL.mode].connect) {
+							if (i == "update") {
+								continue;
+							}
+							config[i.slice(8)] = get.config(i, lib.configOL.mode);
 						}
-						config[i.slice(8)] = get.config(i, lib.configOL.mode);
+						config.zhinang_tricks = lib.config.connect_zhinang_tricks;
 					}
-					config.zhinang_tricks = lib.config.connect_zhinang_tricks;
+					if (!Object.keys(config).length) {
+						clickContainer.call(cacheMenuContainer, connectMenu);
+						return;
+					}
 					if (game.online) {
 						if (game.onlinezhu) {
 							game.send("changeRoomConfig", config);
@@ -55,32 +113,12 @@ export const startMenu = function (connectMenu) {
 					}
 				} else if (_status.enteringroom || _status.creatingroom) {
 					lib.configOL.mode = active.mode;
+					const mode = lib.configOL.mode;
+					const legacyConfig = _status.enteringroomserver ? game.getRoomConfig(mode) : null;
 					if (_status.enteringroomserver) {
-						game.saveConfig("connect_mode", lib.configOL.mode);
-
-						var config = {};
-						for (var i in lib.mode[lib.configOL.mode].connect) {
-							if (i == "update") {
-								continue;
-							}
-							config[i.slice(8)] = get.config(i, lib.configOL.mode);
-						}
-						config.zhinang_tricks = lib.config.connect_zhinang_tricks;
-
-						config.characterPack = lib.connectCharacterPack.slice(0);
-						config.cardPack = lib.connectCardPack.slice(0);
-						for (var i = 0; i < lib.config.connect_characters.length; i++) {
-							config.characterPack.remove(lib.config.connect_characters[i]);
-						}
-						for (var i = 0; i < lib.config.connect_cards.length; i++) {
-							config.cardPack.remove(lib.config.connect_cards[i]);
-						}
-						config.banned = lib.config["connect_" + active.mode + "_banned"];
-						config.bannedcards = lib.config["connect_" + active.mode + "_bannedcards"];
-						game.send("server", "create", game.onlineKey, get.connectNickname(), lib.config.connect_avatar, config, active.mode);
-					} else {
-						game.send("server", "create", game.onlineKey, get.connectNickname(), lib.config.connect_avatar);
+						game.saveConfig("connect_mode", mode);
 					}
+					game.send("server", "create", game.onlineKey, get.connectNickname(), lib.config.connect_avatar, legacyConfig, mode, 1);
 				} else {
 					localStorage.setItem(lib.configprefix + "directstart", true);
 					game.saveConfig("directstartmode", active.mode);
@@ -164,49 +202,59 @@ export const startMenu = function (connectMenu) {
 		}
 		node._initLink = function () {
 			node.link = page;
+			if (connectMenu) {
+				const saveSettings = ui.create.div(".config.pointerspan", "<span>保存联机设置到云端</span>", page, function () {
+					const token = prompt("输入大厅管理口令，保存各联机模式的本机设置");
+					if (!token || game.ws?.readyState !== WebSocket.OPEN || !_status.creatingroom) return;
+
+					const forbidai = new Set([...lib.baseForbidai, ...lib.config.forbidai_user]);
+					for (const pack of lib.connectCharacterPack) {
+						if (lib.config["forbidai_user_" + pack]) {
+							for (const name of Object.keys(lib.characterPack[pack])) forbidai.add(name);
+						}
+					}
+
+					const aiBans = [...forbidai];
+					const settings = Object.fromEntries(
+						Object.keys(lib.mode).filter(mode => lib.mode[mode].connect).map(mode => [mode, { ...game.getRoomConfig(mode), forbidai: aiBans }])
+					);
+					if (settings.doudizhu) {
+						settings.doudizhu.character_online = get.config("character_online", "doudizhu") ?? null;
+					}
+					game.send("server", "saveRoomSettings", token, settings);
+				});
+				const updateSaveSettings = () => {
+					saveSettings.style.display = _status.creatingroom && game.ws?.canSaveRoomSettings ? "" : "none";
+				};
+				menuUpdates.push(updateSaveSettings);
+				updateSaveSettings();
+			}
 			//“更多”下的内容
 			var map = {};
 			var infoconfig = connectMenu ? info.connect : info.config;
+			let config = lib.config.mode_config[mode] || {};
 			if (infoconfig) {
 				var hiddenNodes = [];
-				var config = lib.config.mode_config[mode] || {};
-				if (connectMenu) {
-					infoconfig.connect_choose_timeout = {
-						name: "出牌时限",
-						init: "30",
-						item: {
-							10: "10秒",
-							15: "15秒",
-							30: "30秒",
-							60: "60秒",
-							90: "90秒",
-						},
-						connect: true,
-						frequent: true,
-					};
-					infoconfig.connect_observe = {
-						name: "允许旁观",
-						init: true,
-						connect: true,
-					};
-					infoconfig.connect_observe_handcard = {
-						name: "允许观看手牌",
-						init: false,
-						connect: true,
-					};
-					infoconfig.connect_mount_combine = {
-						name: "合并坐骑栏",
-						init: false,
-						connect: true,
-					};
-				}
 				for (var j in infoconfig) {
 					if (j === "update") {
 						continue;
 					}
-					var cfg = get.copy(infoconfig[j]);
+					const cfg = get.copy(infoconfig[j]);
 					cfg._name = j;
 					cfg.mode = mode;
+					cfg.saveValue = value => {
+						if (!roomConfigChanges) {
+							game.saveConfig(cfg._name, value, mode);
+							return;
+						}
+						const key = cfg._name.slice(8);
+						config[cfg._name] = value;
+						if (value === lib.configOL[key]) {
+							delete roomConfigChanges[key];
+						} else {
+							roomConfigChanges[key] = value;
+						}
+					};
 					if (j in config) {
 						cfg.init = config[j];
 					} else {
@@ -215,7 +263,8 @@ export const startMenu = function (connectMenu) {
 					if (!cfg.onclick) {
 						cfg.onclick = function (result) {
 							var cfg = this._link.config;
-							game.saveConfig(cfg._name, result, mode);
+							cfg.saveValue(result);
+						if (roomConfigChanges) return;
 							if (cfg.onsave) {
 								cfg.onsave.call(this, result);
 							}
@@ -335,6 +384,24 @@ export const startMenu = function (connectMenu) {
 				}
 			}
 			if (connectMenu) {
+				node.loadRoomConfig = () => {
+					config = {};
+					for (const [key, field] of Object.entries(map)) {
+						const value = lib.configOL[key.slice(8)] ?? infoconfig[key].init;
+						config[key] = value;
+						const { choosing, config: definition } = field._link;
+						if (choosing) {
+							field._link.current = value;
+							choosing.innerHTML = definition.item[value] ?? value;
+						} else if (definition.input) {
+							field.lastChild.textContent = value;
+						} else if (field.classList.contains("toggle")) {
+							field.classList.toggle("on", value === true);
+						}
+					}
+					node.update?.();
+					updateConnectDisplayMap();
+				};
 				connectDisplayMap.connect_player_number = map.connect_player_number;
 				connectDisplayMap.connect_versus_mode = map.connect_versus_mode;
 				updateConnectDisplayMap();

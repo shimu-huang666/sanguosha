@@ -1761,7 +1761,9 @@ const doudizhu = {
         const groups = [];
         event.list = [];
         event.map = {};
-        const chara = get.config("character_online") || lib.characterOnline;
+        const chara = Object.hasOwn(lib.configOL, "character_online")
+          ? get.copy(lib.configOL.character_online || lib.characterOnline)
+          : get.config("character_online") || lib.characterOnline;
         for (const group in chara) {
           const list = chara[group];
           for (const name of [...list]) {

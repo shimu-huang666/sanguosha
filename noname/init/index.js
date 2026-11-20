@@ -772,6 +772,7 @@ async function loadConfig() {
       set(name, result[name]);
     }
   }
+  lib.baseForbidai = get$1("forbidai").slice();
   get$1("all").characters = [];
   get$1("all").cards = [];
   get$1("all").plays = [];

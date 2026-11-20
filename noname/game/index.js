@@ -7335,6 +7335,22 @@ ${error}`);
     }
     return promise;
   }
+  getRoomConfig(mode) {
+    const options = lib.mode[mode].connect;
+    const config = {
+      zhinang_tricks: lib.config.connect_zhinang_tricks,
+      characterPack: lib.connectCharacterPack.filter(pack => !lib.config.connect_characters.includes(pack)),
+      cardPack: lib.connectCardPack.filter(pack => !lib.config.connect_cards.includes(pack)),
+      banned: lib.config["connect_" + mode + "_banned"] || [],
+      bannedcards: lib.config["connect_" + mode + "_bannedcards"] || []
+    };
+    for (const key in options) {
+      if (key !== "update") {
+        config[key.slice(8)] = get.config(key, mode) ?? options[key].init;
+      }
+    }
+    return config;
+  }
   /**
    * @param { string } name
    * @param {*} configx
@@ -7425,29 +7441,7 @@ ${error}`);
         game.saveConfig("connect_mode", name2);
         game.clearConnect();
         lib.configOL.mode = name2;
-        if (configx) {
-          for (let i in configx) {
-            lib.configOL[i] = configx[i];
-          }
-        } else {
-          for (let i in lib.mode[name2].connect) {
-            if (i == "update") {
-              continue;
-            }
-            lib.configOL[i.slice(8)] = get.config(i);
-          }
-          lib.configOL.zhinang_tricks = lib.config.connect_zhinang_tricks;
-          lib.configOL.characterPack = lib.connectCharacterPack.slice(0);
-          lib.configOL.cardPack = lib.connectCardPack.slice(0);
-          for (let i = 0; i < lib.config.connect_characters.length; i++) {
-            lib.configOL.characterPack.remove(lib.config.connect_characters[i]);
-          }
-          for (let i = 0; i < lib.config.connect_cards.length; i++) {
-            lib.configOL.cardPack.remove(lib.config.connect_cards[i]);
-          }
-          lib.configOL.banned = lib.config["connect_" + name2 + "_banned"];
-          lib.configOL.bannedcards = lib.config["connect_" + name2 + "_bannedcards"];
-        }
+        Object.assign(lib.configOL, configx ?? game.getRoomConfig(name2));
         lib.configOL.version = lib.versionOL;
         for (let i in lib.cardPackList) {
           if (lib.configOL.cardPack.includes(i)) {
