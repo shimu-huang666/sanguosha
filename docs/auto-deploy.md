@@ -121,7 +121,7 @@ crontab -e
 需要：
 
 - 服务器上给部署用户配置好公钥（`~/.ssh/authorized_keys`）；
-- 仓库 Secrets 里配置 `SERVER_HOST`、`SERVER_PORT`、`SERVER_USER`、`SSH_PRIVATE_KEY`。`SERVER_HOST` 必须指向网站所在服务器（可用 `dig +short sanguosha.shimuhuangkq.cn` 核对），不要填成控制台或其他机器；服务器主机公钥已经固定在 workflow 里，`SSH_KNOWN_HOSTS` 不再使用。
+- 仓库 Secrets 里配置 `SERVER_HOST`、`SERVER_PORT`、`SERVER_USER`、`SSH_PRIVATE_KEY`。`SERVER_HOST` 必须指向网站所在服务器（可用 `dig +short sanguosha.shimuhuangkq.cn` 核对），不要填成控制台或其他机器；服务器主机公钥已经固定在 workflow 里，`SSH_KNOWN_HOSTS` 不再使用。`SSH_PRIVATE_KEY` 必须填完整的私钥（含 `BEGIN/END` 行），不要填 `.pub` 公钥，否则 ssh 会报 `error in libcrypto`。
 
 启用后可以把服务器上的 cron 删掉，避免同一件事做两遍。
 
