@@ -19,23 +19,25 @@ jobs:
       - name: 同步服务器并部署
         env:
           SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          HOST: ${{ secrets.SERVER_HOST }}
-          PORT: ${{ secrets.SERVER_PORT }}
-          USER: ${{ secrets.SERVER_USER }}
+          HOST_RAW: ${{ secrets.SERVER_HOST }}
+          PORT_RAW: ${{ secrets.SERVER_PORT }}
+          USER_RAW: ${{ secrets.SERVER_USER }}
         run: |
+          HOST=$(printf '%s' "$HOST_RAW" | tr -d '\r\n ')
+          PORT=$(printf '%s' "$PORT_RAW" | tr -d '\r\n ')
+          USER=$(printf '%s' "$USER_RAW" | tr -d '\r\n ')
+
           mkdir -p ~/.ssh
           printf '%s\n' "$SSH_KEY" | tr -d '\r' > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
 
-          # 服务器的主机公钥（公开信息），固定下来做严格校验
+          # 服务器的主机公钥（公开信息），按实际 HOST 固定下来做严格校验
           KEY='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFai8DTX9k6ZlsGeLh6ROXBVLYqyk2zd9yZwtUdafLuo'
           {
+            printf '%s %s\n' "$HOST" "$KEY"
+            printf '[%s]:%s %s\n' "$HOST" "$PORT" "$KEY"
             printf '47.114.36.34 %s\n' "$KEY"
             printf 'sanguosha.shimuhuangkq.cn %s\n' "$KEY"
-            if [ "$PORT" != "22" ]; then
-              printf '[47.114.36.34]:%s %s\n' "$PORT" "$KEY"
-              printf '[sanguosha.shimuhuangkq.cn]:%s %s\n' "$PORT" "$KEY"
-            fi
           } > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
