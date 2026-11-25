@@ -114,6 +114,17 @@ crontab -e
 */5 * * * * cd /www/noname-src && git pull --quiet >>/var/log/noname-src-pull.log 2>&1
 ```
 
+## 可选：push 后立即部署（GitHub Actions）
+
+仓库里的 `.github/workflows/deploy.yml` 会在 `push` 到 `main` 后，通过 SSH 到服务器执行 `cd /www/noname-src && git pull --ff-only`，把上面「日常更新」那一步提前到 push 时触发。
+
+需要：
+
+- 服务器上给部署用户配置好公钥（`~/.ssh/authorized_keys`）；
+- 仓库 Secrets 里配置 `SERVER_HOST`、`SERVER_PORT`、`SERVER_USER`、`SSH_PRIVATE_KEY`、`SSH_KNOWN_HOSTS`。
+
+启用后可以把服务器上的 cron 删掉，避免同一件事做两遍。
+
 ## 访问 GitHub
 
 仓库是私有的话，服务器需要有读权限：
