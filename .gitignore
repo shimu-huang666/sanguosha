@@ -12,3 +12,6 @@ room-settings.json.tmp
 
 # Deployment packages
 /deploy/
+
+# Server-side auto-deploy config (paths and restart command)
+/scripts/deploy.env
