@@ -28,4 +28,15 @@ jobs:
           printf '%s\n' "$SSH_KEY" | tr -d '\r' > ~/.ssh/id_ed25519
           printf '%s\n' "$KNOWN_HOSTS" | tr -d '\r' > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
-          ssh -o IdentitiesOnly=yes -p "$PORT" "$USER@$HOST" 'cd /www/noname-src && git pull --ff-only'
+
+          set +e
+          out=$(ssh -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            -p "$PORT" "$USER@$HOST" 'cd /www/noname-src && git pull --ff-only' 2>&1)
+          code=$?
+          printf '%s\n' "$out"
+
+          if [ "$code" -ne 0 ]; then
+            msg=$(printf '%s' "$out" | tr '\n' ' ' | tr -d '\r' | cut -c1-800)
+            echo "::error::ssh 退出码 $code：$msg"
+            exit "$code"
+          fi
