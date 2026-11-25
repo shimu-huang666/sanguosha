@@ -19,15 +19,25 @@ jobs:
       - name: 同步服务器并部署
         env:
           SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
           HOST: ${{ secrets.SERVER_HOST }}
           PORT: ${{ secrets.SERVER_PORT }}
           USER: ${{ secrets.SERVER_USER }}
         run: |
           mkdir -p ~/.ssh
           printf '%s\n' "$SSH_KEY" | tr -d '\r' > ~/.ssh/id_ed25519
-          printf '%s\n' "$KNOWN_HOSTS" | tr -d '\r' > ~/.ssh/known_hosts
-          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519
+
+          # 服务器的主机公钥（公开信息），固定下来做严格校验
+          KEY='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFai8DTX9k6ZlsGeLh6ROXBVLYqyk2zd9yZwtUdafLuo'
+          {
+            printf '47.114.36.34 %s\n' "$KEY"
+            printf 'sanguosha.shimuhuangkq.cn %s\n' "$KEY"
+            if [ "$PORT" != "22" ]; then
+              printf '[47.114.36.34]:%s %s\n' "$PORT" "$KEY"
+              printf '[sanguosha.shimuhuangkq.cn]:%s %s\n' "$PORT" "$KEY"
+            fi
+          } > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
 
           set +e
           out=$(ssh -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes \
