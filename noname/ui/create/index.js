@@ -3392,7 +3392,7 @@ class Create {
       player.classList.add("connect");
       game.connectPlayers.push(player);
     }
-    var bar = ui.create.div(ui.window);
+    var bar = ui.create.div(".connect-room-bar", ui.window);
     bar.style.height = "20px";
     bar.style.width = "80%";
     bar.style.left = "10%";

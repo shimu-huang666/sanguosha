@@ -3464,6 +3464,30 @@ div.select-all:not(.card):not(.player) {
 #window.menupaused > .player.connect {
 	opacity: 0.5;
 }
+#window > .connect-room-bar::before {
+	content: "时慕独家";
+	position: fixed;
+	top: 50%;
+	left: 50%;
+	z-index: -1;
+	transform: translate(-50%, -50%) rotate(-12deg);
+	color: white;
+	opacity: 0.3;
+	text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);
+	font-size: clamp(28px, 8vmin, 72px);
+	font-weight: bold;
+	white-space: nowrap;
+	pointer-events: none;
+}
+@media (max-height: 480px) {
+	#window > .connect-room-bar::before {
+		top: auto;
+		left: auto;
+		right: 4%;
+		bottom: 4%;
+		transform: rotate(-12deg);
+	}
+}
 .connectbutton {
 	top: calc(400% / 7 - 35px);
 	width: 130px;
