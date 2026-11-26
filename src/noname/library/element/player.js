@@ -9942,24 +9942,31 @@ export class Player extends HTMLDivElement {
 			} else {
 				lib.node.torespond[this.playerid] = "_noname_waiting";
 			}
-			clearTimeout(lib.node.torespondtimeout[this.playerid]);
+			const time = game.getChooseTimeout() * 1000;
 			if (this.ws && !this.ws.closed) {
-				var player = this;
-				var time = parseInt(lib.configOL.choose_timeout) * 1000;
 				if (_status.event._global_timer || _status.event.getParent().skillHidden) {
 					for (var i = 0; i < game.players.length; i++) {
 						game.players[i].showTimer(time);
 					}
-					player._hide_all_timer = true;
+					this._hide_all_timer = true;
 				} else if (!_status.event._global_waiting && _status.noclearcountdown !== "direct") {
-					player.showTimer(time);
+					this.showTimer(time);
 				}
-				lib.node.torespondtimeout[this.playerid] = setTimeout(function () {
-					player.unwait("ai");
-					player.ws.ws.close();
-				}, time + 5000);
 			}
+			this.resetOnlineChoiceTimeout(time);
 		}
+	}
+	resetOnlineChoiceTimeout(time) {
+		const timeouts = lib.node.torespondtimeout;
+		clearTimeout(timeouts[this.playerid]);
+		if (!this.ws || this.ws.closed) {
+			delete timeouts[this.playerid];
+			return;
+		}
+		timeouts[this.playerid] = setTimeout(() => {
+			this.unwait("ai");
+			this.ws.ws.close();
+		}, time + 5000);
 	}
 	unwait(result) {
 		if (this._hide_all_timer) {
@@ -10274,11 +10281,11 @@ export class Player extends HTMLDivElement {
 			}
 		}
 	}
-	showTimer(time) {
-		if (!time && lib.configOL) {
-			time = parseInt(lib.configOL.choose_timeout) * 1000;
+	showTimer(time, broadcast = true) {
+		if (lib.configOL && (!time || lib.configOL.discussionTime)) {
+			time = game.getChooseTimeout() * 1000;
 		}
-		if (_status.connectMode && !game.online) {
+		if (broadcast && _status.connectMode && !game.online) {
 			game.broadcast(
 				function (player, time) {
 					player.showTimer(time);

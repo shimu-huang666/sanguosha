@@ -12041,7 +12041,8 @@ class Library {
             null,
             _status.onreconnect,
             _status.cardtag,
-            _status.postReconnect
+            _status.postReconnect,
+            this.id === game.onlinezhu
           );
         } else if (version != lib.versionOL) {
           this.send("denied", "version");
@@ -12135,6 +12136,12 @@ class Library {
        */
       reinited() {
         this.inited = true;
+        this.send("discussionTime", Boolean(lib.configOL.discussionTime));
+      },
+      toggleDiscussionTime() {
+        if (this.id === game.onlinezhu && !lib.node.observing.includes(this)) {
+          game.toggleDiscussionTime();
+        }
       },
       /**
        * @this {import("./element/client.js").Client}
@@ -12865,12 +12872,16 @@ class Library {
           }
         }
       },
-      reinit: function(config, state, state2, ip, observe, onreconnect, cardtag, postReconnect) {
+      discussionTime(enabled) {
+        game.applyDiscussionTime(enabled);
+      },
+      reinit: function(config, state, state2, ip, observe, onreconnect, cardtag, postReconnect, isRoomOwner = false) {
         ui.auto.show();
         ui.pause.show();
         game.clearConnect();
         clearTimeout(_status.createNodeTimeout);
         game.online = true;
+        game.onlinezhu = isRoomOwner;
         game.ip = ip;
         game.servermode = state.servermode;
         game.roomId = state.roomId;
@@ -13241,8 +13252,8 @@ class Library {
           }
           game.loop();
           game.send("reinited");
-          game.showHistory();
           _status.gameStarted = true;
+          game.showHistory();
           if (lib.config.show_cardpile) {
             ui.cardPileButton.style.display = "";
           }

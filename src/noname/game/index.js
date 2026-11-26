@@ -1648,6 +1648,13 @@ export class Game {
 		if (pause != false && ui.pause) {
 			ui.pause.show();
 		}
+		if (
+			_status.connectMode && (_status.gameStarted || lib.configOL?.gameStarted) && !_status.over && !game.observe &&
+			(game.online ? game.onlinezhu : !window.isNonameServer)
+		) {
+			ui.discussionTime ??= ui.create.system("讨论延时", game.toggleDiscussionTime);
+			ui.discussionTime.textContent = lib.configOL.discussionTime ? "恢复计时" : "讨论延时";
+		}
 	}
 	/**
 	 * @param { string } src
@@ -1983,6 +1990,49 @@ export class Game {
 		next.setContent("waitForPlayer");
 		return next;
 	}
+	getChooseTimeout() {
+		return lib.configOL?.discussionTime ? 999 : parseInt(lib.configOL?.choose_timeout);
+	}
+	toggleDiscussionTime() {
+		if (
+			!_status.connectMode || !lib.configOL || _status.over || game.observe ||
+			!(_status.gameStarted || lib.configOL.gameStarted)
+		) {
+			return;
+		}
+		if (game.online) {
+			if (game.onlinezhu) {
+				game.send("toggleDiscussionTime");
+			}
+			return;
+		}
+		game.broadcastAll("discussionTime", !lib.configOL.discussionTime);
+		const time = game.getChooseTimeout() * 1000;
+		for (const id of Object.keys(lib.node.torespondtimeout)) {
+			lib.playerOL[id]?.resetOnlineChoiceTimeout(time);
+		}
+	}
+	applyDiscussionTime(enabled) {
+		if (Boolean(lib.configOL.discussionTime) === enabled) {
+			return;
+		}
+		lib.configOL.discussionTime = enabled;
+		const time = game.getChooseTimeout();
+		if (_status.countDown) {
+			game.countDown(time, game.#countDownOnEnd);
+		}
+		// 切换消息已发给所有客户端，计时条只需在本机刷新。
+		for (const player of [...game.players, ...game.dead]) {
+			if (player.node.timer) {
+				player.showTimer(time * 1000, false);
+			}
+		}
+		if (ui.discussionTime) {
+			ui.discussionTime.textContent = enabled ? "恢复计时" : "讨论延时";
+		}
+	}
+	/** @type {Function | undefined} */
+	#countDownOnEnd;
 	/**
 	 * @param { number } time
 	 * @param { Function } [onEnd]
@@ -1996,6 +2046,8 @@ export class Game {
 		if (time <= 0) {
 			return;
 		}
+		clearInterval(_status.countDown);
+		game.#countDownOnEnd = onEnd;
 		let current = time;
 		ui.timer.set(current, 1);
 		_status.countDown = setInterval(function () {
@@ -2005,6 +2057,7 @@ export class Game {
 				ui.timer.set(0, 0);
 				clearInterval(_status.countDown);
 				delete _status.countDown;
+				game.#countDownOnEnd = undefined;
 				if (onEnd) {
 					onEnd();
 				}
@@ -2020,16 +2073,16 @@ export class Game {
 		let info = _status.event?.player?.forceCountChoose;
 		if (_status.connectMode && !_status.countDown) {
 			ui.timer.show();
-			if (_status.event?.name == "chooseToUse" && _status.event.type == "phase" && typeof info?.phaseUse == "number") {
+			if (lib.configOL.discussionTime) {
+				num = game.getChooseTimeout();
+			} else if (_status.event?.name == "chooseToUse" && _status.event.type == "phase" && typeof info?.phaseUse == "number") {
 				num = info.phaseUse;
 			} else if (typeof info?.[_status.event.name] == "number") {
 				num = info[_status.event.name];
 			} else if (typeof info?.default == "number") {
 				num = info.default;
-			} else if (_status.connectMode) {
-				num = lib.configOL.choose_timeout;
 			} else {
-				num = get.config("choose_timeout");
+				num = game.getChooseTimeout();
 			}
 			game.countDown(parseInt(num), () => {
 				ui.click.auto();
@@ -2094,6 +2147,7 @@ export class Game {
 		if (_status.countDown) {
 			clearInterval(_status.countDown);
 			delete _status.countDown;
+			game.#countDownOnEnd = undefined;
 			ui.timer.hide();
 		}
 		if (_status.connectMode && !game.online && game.me) {
@@ -6696,6 +6750,8 @@ ${e instanceof Error ? e.stack : String(e)}`);
 			hsMap.set(target, target.getCards("h"));
 		}
 		_status.over = true;
+		ui.discussionTime?.remove();
+		delete ui.discussionTime;
 		ui.control.show();
 		ui.clear();
 		game.stopCountChoose();
@@ -9099,6 +9155,8 @@ ${e instanceof Error ? e.stack : String(e)}`);
 		game.finishCards();
 	}
 	clearArena() {
+		ui.discussionTime?.remove();
+		delete ui.discussionTime;
 		ui.control.innerHTML = "";
 		ui.arenalog.innerHTML = "";
 		Array.from(ui.arena.childNodes).forEach(value => {
