@@ -788,25 +788,17 @@ const otherMenu = function(connectMenu) {
     var node2 = ui.create.div(".menubutton.large", "录像", start.firstChild, clickMode);
     node2.type = "video";
     lib.videos = [];
-    ui.create.videoNode = (video, before) => {
-      lib.videos.remove(video);
-      if (_status.over) {
-        return;
-      }
-      lib.videos[before === true ? "unshift" : "push"](video);
-    };
     node2._initLink = function() {
       node2.link = page;
-      var store = lib.db.transaction(["video"], "readwrite").objectStore("video");
+      const videos = [];
+      const store = lib.db.transaction("video").objectStore("video");
       store.openCursor().onsuccess = function(e) {
-        var cursor = e.target.result;
+        const cursor = e.target.result;
         if (cursor) {
-          lib.videos.push(cursor.value);
+          videos.push(cursor.value);
           cursor.continue();
         } else {
-          lib.videos.sort(function(a, b) {
-            return parseInt(b.time) - parseInt(a.time);
-          });
+          lib.videos = videos.sort((a, b) => Number(b.time) - Number(a.time));
           var clickcapt = function() {
             var current = this.parentNode.querySelector(".videonode.active");
             if (current && current != this) {
@@ -849,11 +841,17 @@ const otherMenu = function(connectMenu) {
             }
             str += minutes;
             ui.create.div(".caption", video.name[0], node3);
-            ui.create.div(".text", str + "<br>" + video.name[1], node3);
+            ui.create.div(".text", str + "<br>" + video.name[1] + (video.unfinished ? " · 未完局" : ""), node3);
             if (video.win) {
               ui.create.div(".victory", "胜", node3);
             }
             if (before) {
+              const savedVideos = new Set(lib.videos.map(video => video.time));
+              for (const row of page.querySelectorAll(".videonode")) {
+                if (!savedVideos.has(row.link.time)) {
+                  row.remove();
+                }
+              }
               page.insertBefore(node3, page.firstChild);
             } else {
               page.appendChild(node3);
@@ -867,6 +865,13 @@ const otherMenu = function(connectMenu) {
             createNode(lib.videos[i]);
           }
           ui.create.videoNode = createNode;
+          const isReplayLocked = video => {
+            if (!game.activeOnlineReplayTimes.has(video.time)) {
+              return false;
+            }
+            ui.create.toast("本局结束或退出房间后可播放或导出");
+            return true;
+          };
           var importVideoNode = ui.create.div(
             ".config.switcher.pointerspan",
             '<span class="underlinenode slim ">导入录像...</span>',
@@ -934,7 +939,7 @@ const otherMenu = function(connectMenu) {
           };
           playButton.listen(function() {
             var current = this.parentNode.querySelector(".videonode.active");
-            if (current) {
+            if (current && !isReplayLocked(current.link)) {
               game.playVideo(current.link.time, current.link.mode);
             }
           });
@@ -949,7 +954,7 @@ const otherMenu = function(connectMenu) {
           });
           saveButton.listen(function() {
             var current = this.parentNode.querySelector(".videonode.active");
-            if (current) {
+            if (current && !isReplayLocked(current.link)) {
               game.export(lib.init.encode(JSON.stringify(current.link)), "无名杀 - 录像 - " + current.link.name[0] + " - " + current.link.name[1]);
             }
           });

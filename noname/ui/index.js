@@ -132,6 +132,8 @@ class UI {
    * @type {HTMLDivElement}
    */
   auto;
+  /** @type {HTMLDivElement | undefined} */
+  saveVideoButton;
   /**
    * @type {HTMLDivElement}
    */

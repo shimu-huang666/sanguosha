@@ -4674,7 +4674,138 @@ ${error}`);
     }
     if (type === "init") {
       game.addVideo("cardtag", null, _status.cardtag);
+      if (!ui.saveVideoButton && ui.system2 && !window.isNonameServer && !_status.over && game.canSaveVideo()) {
+        let saving = false;
+        ui.saveVideoButton = ui.create.system("保存录像", async () => {
+          if (saving) {
+            return;
+          }
+          saving = true;
+          try {
+            const record = await game.saveVideo();
+            ui.create.toast(record ? "当前录像已保存" : "当前没有可保存的录像");
+          } catch (error) {
+            console.error(error);
+            ui.create.toast("录像保存失败");
+          } finally {
+            saving = false;
+          }
+        }, true);
+      }
     }
+  }
+  activeOnlineReplayTimes = new Set();
+  canSaveVideo() {
+    return Boolean(window.indexedDB && !window.nodb && lib.db && game.getVideoName && _status.videoInited && !_status.video && !game.online);
+  }
+  /**
+   * @param {boolean} [win] 省略时保存未完局。
+   * @returns {Promise<Videos | null>}
+   */
+  async saveVideo(win) {
+    const unfinished = win === undefined;
+    const limit = parseInt(lib.config.video);
+    if (!game.canSaveVideo() || (unfinished ? _status.over : !limit)) {
+      return null;
+    }
+    const me = game.me || game.players[0];
+    if (!me) {
+      return null;
+    }
+    const record = {
+      name: game.getVideoName(),
+      mode: lib.config.mode,
+      video: structuredClone(lib.video),
+      win: win === true,
+      unfinished,
+      name1: me.name1 || me.name,
+      name2: me.name2,
+      time: lib.getUTC(/* @__PURE__ */ new Date())
+    };
+    let modecharacters = lib.characterPack["mode_" + get.mode()];
+    if (modecharacters) {
+      if (get.mode() == "guozhan") {
+        if (modecharacters[record.name1]) {
+          if (record.name1.startsWith("gz_shibing")) {
+            record.name1 = record.name1.slice(3, 11);
+          } else {
+            record.name1 = record.name1.slice(3);
+          }
+        }
+        if (modecharacters[record.name2]) {
+          if (record.name2.startsWith("gz_shibing")) {
+            record.name2 = record.name2.slice(3, 11);
+          } else {
+            record.name2 = record.name2.slice(3);
+          }
+        }
+      } else {
+        if (modecharacters[record.name1]) {
+          record.name1 = get.mode() + "::" + record.name1;
+        }
+        if (modecharacters[record.name2]) {
+          record.name2 = get.mode() + "::" + record.name2;
+        }
+      }
+    }
+    if (record.name1 && record.name1.startsWith("subplayer_")) {
+      record.name1 = record.name1.slice(10, record.name1.lastIndexOf("_"));
+    }
+    if (record.name2 && record.name2.startsWith("subplayer_")) {
+      record.name1 = record.name2.slice(10, record.name1.lastIndexOf("_"));
+    }
+    const transaction = lib.db.transaction(["video"], "readwrite");
+    const store = transaction.objectStore("video");
+    const expired = new Set();
+    await new Promise((resolve, reject) => {
+      transaction.oncomplete = resolve;
+      transaction.onabort = () => reject(transaction.error ?? new DOMException("录像保存已中止", "AbortError"));
+      const count = store.count();
+      count.onsuccess = () => {
+        const checkLimit = limit > 0 && count.result >= limit;
+        const request = checkLimit ? store.openCursor() : store.openKeyCursor(IDBKeyRange.lowerBound(record.time));
+        let unstarred = 0;
+        const oldest = [];
+        request.onsuccess = () => {
+          const cursor = request.result;
+          if (cursor) {
+            // 找到空闲的时间键，避免覆盖已有录像。
+            if (cursor.key === record.time) {
+              record.time++;
+            } else if (!checkLimit) {
+              store.add(record);
+              return;
+            }
+            if ("value" in cursor && !cursor.value.starred) {
+              unstarred++;
+              if (oldest.length < 5) {
+                oldest.push(cursor.primaryKey);
+              }
+            }
+            cursor.continue();
+            return;
+          }
+          for (const time of oldest.slice(0, Math.max(0, unstarred - limit + 1))) {
+            store.delete(time);
+            expired.add(time);
+          }
+          store.add(record);
+        };
+      };
+    });
+    if (unfinished && _status.connectMode && !_status.over) {
+      game.activeOnlineReplayTimes.add(record.time);
+    }
+    if (lib.videos) {
+      for (let i = lib.videos.length - 1; i >= 0; i--) {
+        if (expired.has(lib.videos[i].time)) {
+          lib.videos.splice(i, 1);
+        }
+      }
+      lib.videos.unshift(record);
+      ui.create.videoNode?.(record, true);
+    }
+    return record;
   }
   /**
    * @param { Function } func
@@ -6206,6 +6337,9 @@ ${error}`);
       }
       return;
     }
+    ui.saveVideoButton?.remove();
+    ui.saveVideoButton = undefined;
+    game.activeOnlineReplayTimes.clear();
     if (lib.config.background_audio) {
       if (result === true) {
         game.playAudio("effect", "win");
@@ -6625,74 +6759,7 @@ ${error}`);
     dialog.add(ui.create.div(".placeholder"));
     dialog.add(ui.create.div(".placeholder.slim"));
     game.addVideo("over", null, dialog.content.innerHTML);
-    let vinum = parseInt(lib.config.video);
-    if (!_status.video && vinum && game.getVideoName && window.indexedDB && _status.videoInited) {
-      let store = lib.db.transaction(["video"], "readwrite").objectStore("video");
-      let videos = lib.videos.slice(0);
-      for (let i2 = 0; i2 < videos.length; i2++) {
-        if (videos[i2].starred) {
-          videos.splice(i2--, 1);
-        }
-      }
-      for (let deletei = 0; deletei < 5; deletei++) {
-        if (videos.length >= vinum) {
-          let toremove = videos.pop();
-          lib.videos.remove(toremove);
-          store.delete(toremove.time);
-        } else {
-          break;
-        }
-      }
-      let me = game.me || game.players[0];
-      if (!me) {
-        return;
-      }
-      let newvid = {
-        name: game.getVideoName(),
-        mode: lib.config.mode,
-        video: lib.video,
-        win: result == "战斗胜利",
-        name1: me.name1 || me.name,
-        name2: me.name2,
-        time: lib.getUTC(/* @__PURE__ */ new Date())
-      };
-      let modecharacters = lib.characterPack["mode_" + get.mode()];
-      if (modecharacters) {
-        if (get.mode() == "guozhan") {
-          if (modecharacters[newvid.name1]) {
-            if (newvid.name1.startsWith("gz_shibing")) {
-              newvid.name1 = newvid.name1.slice(3, 11);
-            } else {
-              newvid.name1 = newvid.name1.slice(3);
-            }
-          }
-          if (modecharacters[newvid.name2]) {
-            if (newvid.name2.startsWith("gz_shibing")) {
-              newvid.name2 = newvid.name2.slice(3, 11);
-            } else {
-              newvid.name2 = newvid.name2.slice(3);
-            }
-          }
-        } else {
-          if (modecharacters[newvid.name1]) {
-            newvid.name1 = get.mode() + "::" + newvid.name1;
-          }
-          if (modecharacters[newvid.name2]) {
-            newvid.name2 = get.mode() + "::" + newvid.name2;
-          }
-        }
-      }
-      if (newvid.name1 && newvid.name1.startsWith("subplayer_")) {
-        newvid.name1 = newvid.name1.slice(10, newvid.name1.lastIndexOf("_"));
-      }
-      if (newvid.name2 && newvid.name2.startsWith("subplayer_")) {
-        newvid.name1 = newvid.name2.slice(10, newvid.name1.lastIndexOf("_"));
-      }
-      lib.videos.unshift(newvid);
-      newvid.video = structuredClone(newvid.video);
-      store.put(newvid);
-      ui.create.videoNode(newvid, true);
-    }
+    game.saveVideo(result == "战斗胜利").catch(console.error);
     if (ui.auto) {
       ui.auto.hide();
     }
